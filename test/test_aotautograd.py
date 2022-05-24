@@ -163,6 +163,8 @@ class ProxyTensor(torch.Tensor):
 
             # this should be producing SymInts
             output_shape = propagate_meta(func_overload, *args, **kwargs)
+
+            # TODO: this can produce new symbols which need to be registered in tracer.sizes
             output_shape = [check_sym_int(x) for x in output_shape]
             sym_strides = ProxyTensor.sym_strides(tracer, output_shape)
             sym_strides = [check_sym_int(x) for x in sym_strides]
@@ -220,17 +222,20 @@ class Tracer(object):
         self.graph = fx.Graph()
         self.guards = []
         self.shape_env = {}
+        self.sizes = []
 
     def get_one(self, shape_env = None):
         #return self.create_symbol('CONST1', 1, shape_env)
         return torch._C.SymbolicIntNode.new_symint(PySymInt(sympy.Integer(1), self))
 
-    def create_symbol(self, name, val, shape_env=None):
+    def create_symbol(self, name, val, arg, index, shape_env=None):
         if shape_env is None:
             shape_env = self.shape_env
         sympy_symint = sympy.symbols(name, integer=True)
         sym_int = torch._C.SymbolicIntNode.new_symint(PySymInt(sympy_symint, self))
         shape_env[sympy_symint] = val
+        shape_env[id(sym_int)] = (arg, index)
+        self.sizes.append(sym_int)
         return sym_int
 
     def evaluate_expr(self, expr):
@@ -243,7 +248,7 @@ class Tracer(object):
         for idx, arg in enumerate(args):
             name = chr(idx+65)
             proxy = self.graph.placeholder(name)
-            sym_shapes = [self.create_symbol(f'{name}_{idx}', i) for idx, i in enumerate(arg.shape)]
+            sym_shapes = [self.create_symbol(f'{name}_{idx}', i, proxy, idx) for idx, i in enumerate(arg.shape)]
             sym_shapes = [check_sym_int(x) for x in sym_shapes]
             sym_strides =[check_sym_int(x) for x in ProxyTensor.sym_strides(self, sym_shapes)]
             proxy_args.append(ProxyTensor(arg, proxy, sym_shapes, sym_strides, self))
@@ -254,7 +259,7 @@ class Tracer(object):
         # args = [create_proxy(chr(idx + 65), i.shape) for idx, i in enumerate(args)]
         for idx, arg in enumerate(args):
             name = chr(idx+65)
-            sym_shapes = [self.create_symbol(f'{name}_{idx}', i, env) for idx, i in enumerate(arg.shape)]
+            sym_shapes = [self.create_symbol(f'{name}_{idx}', i, arg, idx, env) for idx, i in enumerate(arg.shape)]
         return all(guard.subs(env) == value for guard, value in self.guards)
 
 
@@ -277,14 +282,55 @@ def dynamic_trace(f, args):
 # __new__(cls, fake_elem, proxy, sym_shape, sym_strides, tracer):
 #pt = ProxyTensor(torch.rand(6), None, )
 
+# def f(a, b):
+#     return a.expand(b.size()[0], b.size()[1])
+
+# tracer = dynamic_trace(f, [torch.rand(4, 1), torch.rand(4, 10)])
+# print(tracer.graph)
+# print(tracer.guards)
+# print("done")
 
 def f(a):
     return a.narrow_copy(0, 0, a.size()[0])
 
 tracer = dynamic_trace(f, [torch.rand(4)])
+#print(tracer.graph.nodes)
+tracer.graph.print_tabular()
+print(tracer.shape_env[id(list(tracer.graph.nodes)[1].args[3])])
+
+new_size_nodes = {}
+# TODO: we should be inserting size nodes after ALL placeholder args
+with tracer.graph.inserting_after(list(tracer.graph.nodes)[0]):
+
+        for symint in tracer.sizes:
+            (t, idx) = tracer.shape_env[id(symint)]
+            new_node = tracer.graph.call_function(
+                aten.size, args=(t,idx))
+
+            new_size_nodes[id(symint)] = new_node
+            # symint isn't a real proxy node
+            #symint.replace_all_uses_with(new_node)
+
+for n in tracer.graph.nodes:
+    new_args = []
+    for idx, arg in enumerate(n.args):
+        if id(arg) in new_size_nodes:
+            new_args.append(new_size_nodes[id(arg)])
+        else:
+            new_args.append(arg)
+
+    n.args = tuple(new_args)
+
 print(tracer.graph)
-print(tracer.guards)
+# print(tracer.graph)
+# print(tracer.guards)
 print("done")
+
+    # new_node = traced.graph.call_function(
+    #     torch.relu, args=(node,))
+
+# print_tabular()
+#node.replace_all_uses_with(new_node)
 
 # def f(a, b):
 #     if a.size()[0] + 0 < 10 and a.size()[0] + 0 == a.size()[0] * 1:
