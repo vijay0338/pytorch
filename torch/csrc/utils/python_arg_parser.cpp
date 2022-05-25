@@ -586,6 +586,7 @@ static bool is_int_or_symint_list(PyObject* obj, int broadcast_size) {
         PySequence_GetItem(obj, 0));
 
     if (THPUtils_checkIndex(item.ptr()) || is_symint_node(item)) {
+      std::cerr << " is_int_or_symint_list true\n";
       return true;
     }
     // NOTE: JIT tracer allows arbitrary scalar tensors to act as ints
@@ -1050,7 +1051,8 @@ bool FunctionSignature::parse(PyObject* self, PyObject* args, PyObject* kwargs, 
 
   // if there is a single positional IntArrayRef argument, i.e. expand(..), view(...),
   // allow a var-args style IntArrayRef, so expand(5,3) behaves as expand((5,3))
-  if (max_pos_args == 1 && params[0].type_ == ParameterType::INT_LIST) {
+  if (max_pos_args == 1 && (params[0].type_ == ParameterType::INT_LIST || 
+  params[0].type_ == ParameterType::SYM_INT_LIST)) {
     allow_varargs_intlist = true;
   }
 

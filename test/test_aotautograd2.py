@@ -154,8 +154,6 @@ class ProxyTensor(torch.Tensor):
             tree_map(get_tracer, (args, kwargs))
             assert len(tracer) > 0
             tracer = tracer[0]
-            print(f"&&&&&&&&&&&&&&&&&&&&&& {type(args[1][0]).__name__}")
-            print(f"&&&&&&&&&&&&&&&&&&&&&& {int(args[1][0])}")
             output_proxy = tracer.graph.call_function(func_overload, tree_map(get_proxy, args), tree_map(get_proxy, kwargs))
             print("about to run overload")
             with no_dispatch():
@@ -262,10 +260,8 @@ class Tracer(object):
             name = chr(idx+65)
             proxy = self.graph.placeholder(name)
             sym_shapes = [self.create_symbol(f'{name}_{idx}', i, proxy, idx) for idx, i in enumerate(arg.shape)]
-            print("%%%%%%%%%%%%%%%%%%%%%%%%%")
             print(name)
             sym_shapes = [check_sym_int(x) for x in sym_shapes]
-            print(f"{int(sym_shapes[0])} {int(sym_shapes[1])}")
             sym_strides =[check_sym_int(x) for x in ProxyTensor.sym_strides(self, sym_shapes)]
             proxy_args.append(ProxyTensor(arg, proxy, sym_shapes, sym_strides, self))
         return proxy_args
@@ -298,13 +294,12 @@ def dynamic_trace(f, args):
 # __new__(cls, fake_elem, proxy, sym_shape, sym_strides, tracer):
 #pt = ProxyTensor(torch.rand(6), None, )
 
-def f(a, b):
-    return a.expand((b.size()[0], b.size()[1]))
+def f(a):
+    return a.narrow_copy(0, 0, a.shape[0] - 2)
 
-tracer = dynamic_trace(f, [torch.rand(4, 1), torch.rand(4, 10)])
-print(tracer.graph)
-print(tracer.guards)
-print("done")
+tracer = dynamic_trace(f, [torch.rand(4)])
+print(tracer.graph.nodes)
+tracer.graph.print_tabular()
 
 new_size_nodes = {}
 # TODO: we should be inserting size nodes after ALL placeholder args
@@ -334,12 +329,7 @@ print(tracer.graph)
 # print(tracer.guards)
 print("done")
 
-# def f(a):
-#     return a.narrow_copy(0, 0, a.size()[0] - 2)
 
-# tracer = dynamic_trace(f, [torch.rand(4)])
-# #print(tracer.graph.nodes)
-# tracer.graph.print_tabular()
 
     # new_node = traced.graph.call_function(
     #     torch.relu, args=(node,))

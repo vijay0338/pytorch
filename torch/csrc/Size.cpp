@@ -16,6 +16,9 @@ struct THPSize {
   PyTupleObject tuple;
 };
 
+
+
+
 PyObject * THPSize_New(const torch::autograd::Variable& var)
 {
   if (!torch::jit::tracer::isTracing()) {
@@ -40,6 +43,29 @@ PyObject * THPSize_NewFromSizes(int dim, const int64_t *sizes)
   if (!self) throw python_error();
   THPUtils_packInt64Array(self, dim, sizes);
   return self.release();
+}
+
+PyObject * THPSize_NewFromSymSizes(const at::Tensor& self_)
+{
+  HANDLE_TH_ERRORS
+    auto sym_sizes = self_.sym_sizes();
+
+    auto ret = THPObjectPtr(THPSizeType.tp_alloc(&THPSizeType, sym_sizes.size()));
+    if (!ret) throw python_error();
+
+    for (auto i: c10::irange(sym_sizes.size())) {
+      auto si = sym_sizes[i];
+      if (si.is_symbolic()) {
+        auto py_symint = py::cast(si.toSymbolicIntNode()).release().ptr();
+        PyTuple_SET_ITEM(ret.get(), i, py_symint);
+      } else {
+        PyTuple_SET_ITEM(ret.get(), i, THPUtils_packInt64(si.expect_int()));
+      }
+    }
+    return ret.release();
+
+  Py_RETURN_NONE;
+  END_HANDLE_TH_ERRORS
 }
 
 static bool isTracedZeroDimVar(PyObject *item) {
