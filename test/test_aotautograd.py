@@ -235,7 +235,7 @@ class Tracer(object):
         self.graph = fx.Graph()
         self.guards = []
         self.shape_env = {}
-        self.sizes = []
+        self.sizes_env = {}
 
     def get_one(self, shape_env = None):
         #return self.create_symbol('CONST1', 1, shape_env)
@@ -247,8 +247,8 @@ class Tracer(object):
         sympy_symint = sympy.symbols(name, integer=True)
         sym_int = torch._C.SymbolicIntNode.new_symint(PySymInt(sympy_symint, self))
         shape_env[sympy_symint] = val
-        shape_env[id(sym_int)] = (arg, index)
-        self.sizes.append(sym_int)
+        # TODO: should be hashable
+        self.sizes_env[id(sym_int)] = (arg, index, sym_int)
         return sym_int
 
     def evaluate_expr(self, expr):
@@ -262,8 +262,6 @@ class Tracer(object):
             name = chr(idx+65)
             proxy = self.graph.placeholder(name)
             sym_shapes = [self.create_symbol(f'{name}_{idx}', i, proxy, idx) for idx, i in enumerate(arg.shape)]
-            print("%%%%%%%%%%%%%%%%%%%%%%%%%")
-            print(name)
             sym_shapes = [check_sym_int(x) for x in sym_shapes]
             print(f"{int(sym_shapes[0])} {int(sym_shapes[1])}")
             sym_strides =[check_sym_int(x) for x in ProxyTensor.sym_strides(self, sym_shapes)]
@@ -286,6 +284,26 @@ def dynamic_trace(f, args):
     f(*args)
     return tracer
 
+def replace_size_symints(tracer):
+
+    if len(list(tracer.graph.nodes)) == 0:
+        return
+    new_size_nodes = {}
+    insertion_point = [x for x in tracer.graph.nodes if x.op != "placeholder"][0]
+    with tracer.graph.inserting_before(insertion_point):
+
+            for idx, t, symint in tracer.sizes_env.values():
+                new_node = tracer.graph.call_function(
+                    aten.size, args=(t,idx))
+                new_size_nodes[id(symint)] = new_node
+
+    def get_size_node(arg):
+        return new_size_nodes[id(arg)] if id(arg) in new_size_nodes else arg
+
+    for n in tracer.graph.nodes:
+        n.args = tuple(tree_map(get_size_node, n.args))
+
+
 ## Start reading from here!
 # Basically, we create symbolic variables for the shapes of each of our variables
 # Then, we simply trace like we would normally. However, our proxies now also contain "symbolic shapes" on them.
@@ -302,58 +320,32 @@ def f(a, b):
     return a.expand((b.size()[0], b.size()[1]))
 
 tracer = dynamic_trace(f, [torch.rand(4, 1), torch.rand(4, 10)])
+
 print(tracer.graph)
 print(tracer.guards)
 print("done")
 
-new_size_nodes = {}
-# TODO: we should be inserting size nodes after ALL placeholder args
-with tracer.graph.inserting_after(list(tracer.graph.nodes)[0]):
-
-        for symint in tracer.sizes:
-            (t, idx) = tracer.shape_env[id(symint)]
-            new_node = tracer.graph.call_function(
-                aten.size, args=(t,idx))
-
-            if isinstance(symint, SYM_INT_CLASS):
-                print(f"^^^ {symint} {id(symint)}")
-
-            new_size_nodes[id(symint)] = new_node
-            # symint isn't a real proxy node
-            #symint.replace_all_uses_with(new_node)
-
-def get_size_node(arg):
-    return new_size_nodes[id(arg)] if id(arg) in new_size_nodes else arg
-
-for n in tracer.graph.nodes:
-
-    n.args = tuple(tree_map(get_size_node, n.args))
-
+tracer.graph.print_tabular()
+replace_size_symints(tracer)
 print(tracer.graph)
-# print(tracer.graph)
-# print(tracer.guards)
+print(tracer.guards)
 print("done")
+exit(0)
 
-# def f(a):
-#     return a.narrow_copy(0, 0, a.size()[0] - 2)
+def f(a):
+    return a.narrow_copy(0, 0, a.size()[0] - 2)
 
-# tracer = dynamic_trace(f, [torch.rand(4)])
-# #print(tracer.graph.nodes)
-# tracer.graph.print_tabular()
+tracer = dynamic_trace(f, [torch.rand(4)])
+#print(tracer.graph.nodes)
+tracer.graph.print_tabular()
 
-    # new_node = traced.graph.call_function(
-    #     torch.relu, args=(node,))
-
-# print_tabular()
-#node.replace_all_uses_with(new_node)
-
-# def f(a, b):
-#     if a.size()[0] + 0 < 10 and a.size()[0] + 0 == a.size()[0] * 1:
-#         return a + b
-#     else:
-#         return a + a
-# tracer = dynamic_trace(f, [torch.rand(4), torch.rand(4)])
-# print(tracer.graph)
-# print(tracer.guards)
-# print("done")
+def f(a, b):
+    if a.size()[0] + 0 < 10 and a.size()[0] + 0 == a.size()[0] * 1:
+        return a + b
+    else:
+        return a + a
+tracer = dynamic_trace(f, [torch.rand(4), torch.rand(4)])
+print(tracer.graph)
+print(tracer.guards)
+print("done")
 
