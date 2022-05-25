@@ -170,9 +170,7 @@ static PyObject * THPVariable_size(PyObject* self, PyObject* args, PyObject* kwa
       return wrap(self_.size(r.toInt64(0)));
     }
   } else if (r.idx == 1) {
-    // TODO: this doesn't quite work yet since Size expects a tupe of ints.
-    // sym_size() does work though
-    return pack_sym_size(self_);
+    return THPSize_NewFromSymSizes(self_);
   }
   else if (r.idx == 2) {
     if (jit::tracer::isTracing()) {

@@ -416,17 +416,22 @@ inline std::vector<c10::SymInt> PythonArgs::symintlist(int i) {
   res.reserve(size2);
   for(const auto idx : c10::irange(size2)) {
     PyObject* obj = tuple ? PyTuple_GET_ITEM(arg, idx) : PyList_GET_ITEM(arg, idx);
+    std::cerr << "looking at " << idx << " " << py::handle(obj) << std::endl;
     try {
       if (is_symint_node(py::handle(obj))) {
         res.push_back(py::handle(obj).cast<c10::SymbolicIntNode*>()->toSymInt());
+        std::cerr << "added a SymbolicIntNode\n";
       } else {
-        res.push_back(THPUtils_unpackIndex(obj));
+        res.push_back(c10::SymInt(THPUtils_unpackIndex(obj)));
+        std::cerr << "added an int\n";
       }
     } catch (const std::exception &e) {
-      throw TypeError("%s(): argument '%s' must be %s, but found element of type %s at pos %ld",
+      auto te = TypeError("%s(): argument '%s' must be %s, but found element of type %s at pos %ld",
           signature.name.c_str(), signature.params[i].name.c_str(),
           signature.params[i].type_name().c_str(), Py_TYPE(obj)->tp_name, idx + 1);
+      std::cerr << "$$$$ " <<  te.what() << " " << te.msg << std::endl;
     }
+
   }
 
   return res;

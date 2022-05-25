@@ -146,12 +146,12 @@ public:
 
   virtual int64_t int_() {
     py::gil_scoped_acquire acquire;
-    return py::str(getPyObj().attr("__int__")()).is(py::str(Py_True));
+    return getPyObj().attr("__int__")().cast<int64_t>();
   }
 
   virtual std::string str() {
     py::gil_scoped_acquire acquire;
-    return py::str(getPyObj()).cast<std::string>();
+    return getPyObj().attr("__str__")().cast<std::string>();
     // TODO: can we just do getPyObj().cast<string>?
   }
 
@@ -1205,9 +1205,11 @@ void initJITBindings(PyObject* module) {
       return a->bool_();
     })
     .def("__int__", [](std::shared_ptr<c10::SymbolicIntNode> a) {
+      std::cerr << "invoking __int__" << std::endl;
       return a->int_();
     })
     .def("__str__", [](std::shared_ptr<c10::SymbolicIntNode> a) {
+      std::cerr << "invoking __str__" << std::endl;
       return a->str();
     });
 
