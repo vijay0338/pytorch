@@ -315,19 +315,19 @@ with tracer.graph.inserting_after(list(tracer.graph.nodes)[0]):
             new_node = tracer.graph.call_function(
                 aten.size, args=(t,idx))
 
+            if isinstance(symint, SYM_INT_CLASS):
+                print(f"^^^ {symint} {id(symint)}")
+
             new_size_nodes[id(symint)] = new_node
             # symint isn't a real proxy node
             #symint.replace_all_uses_with(new_node)
 
-for n in tracer.graph.nodes:
-    new_args = []
-    for idx, arg in enumerate(n.args):
-        if id(arg) in new_size_nodes:
-            new_args.append(new_size_nodes[id(arg)])
-        else:
-            new_args.append(arg)
+def get_size_node(arg):
+    return new_size_nodes[id(arg)] if id(arg) in new_size_nodes else arg
 
-    n.args = tuple(new_args)
+for n in tracer.graph.nodes:
+
+    n.args = tuple(tree_map(get_size_node, n.args))
 
 print(tracer.graph)
 # print(tracer.graph)
