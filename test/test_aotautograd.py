@@ -294,7 +294,7 @@ def replace_size_symints(tracer):
 
             for idx, t, symint in tracer.sizes_env.values():
                 new_node = tracer.graph.call_function(
-                    aten.size, args=(t,idx))
+                    aten.size, args=(t, idx))
                 new_size_nodes[id(symint)] = new_node
 
     def get_size_node(arg):
@@ -317,7 +317,7 @@ def replace_size_symints(tracer):
 #pt = ProxyTensor(torch.rand(6), None, )
 
 def f(a, b):
-    return a.expand((b.size()[0], b.size()[1]))
+    return a.expand(b.size()[0], b.size()[1])
 
 tracer = dynamic_trace(f, [torch.rand(4, 1), torch.rand(4, 10)])
 

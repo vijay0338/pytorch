@@ -1109,7 +1109,9 @@ bool FunctionSignature::parse(PyObject* self, PyObject* args, PyObject* kwargs, 
     // tracer is enabled. This behavior easily leads to ambiguities, and we
     // should avoid having complex signatures that make use of it...
     } else if (allow_varargs_intlist && arg_pos == 0 && !is_kwd &&
-               THPUtils_checkIndex(obj)) {
+               (THPUtils_checkIndex(obj) || (param.type_ == 
+                ParameterType::SYM_INT_LIST && torch::is_symint_node(py::handle(obj))
+               ))) {
       // take all positional arguments as this parameter
       // e.g. permute(1, 2, 3) -> permute((1, 2, 3))
       dst[i++] = args;
