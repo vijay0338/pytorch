@@ -1310,4 +1310,13 @@ at::Scalar PythonArgs::scalar_slow(PyObject* arg) {
   return at::Scalar(THPUtils_unpackDouble(arg));
 }
 
+bool is_symint_node(py::handle obj) {
+      auto static tp_symn = py::type::of<c10::SymbolicIntNode>();
+      if (obj.get_type().equal(tp_symn)) {
+        TORCH_CHECK(!jit::tracer::isTracing(), "JIT tracing of SymInts isn't supported!");
+        return true;
+      }
+      return false;
+}
+
 } // namespace torch
