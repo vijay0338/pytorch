@@ -390,14 +390,7 @@ inline std::vector<int64_t> PythonArgs::intlist(int i) {
   return intlistWithDefault(i, signature.params[i].default_intlist);
 }
 
-static bool is_symint_node(py::handle obj) {
-      auto static tp_symn = py::type::of<c10::SymbolicIntNode>();
-      if (obj.get_type().equal(tp_symn)) {
-        TORCH_CHECK(!jit::tracer::isTracing(), "JIT tracing of SymInts isn't supported!");
-        return true;
-      }
-      return false;
-}
+TORCH_API bool is_symint_node(py::handle obj);
 
 inline std::vector<c10::SymInt> PythonArgs::symintlist(int i) {
 
