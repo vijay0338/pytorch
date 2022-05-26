@@ -128,12 +128,12 @@ using caffe2::serialize::PyTorchStreamWriter;
 
 class PythonSymbolicIntNode: public c10::SymbolicIntNode {
 public:
-  PythonSymbolicIntNode(py::object pyobj): 
+  PythonSymbolicIntNode(py::object pyobj):
     c10::SymbolicIntNode() {
       pyobj_ = std::make_shared<c10::SafePyObject>(pyobj.release().ptr(), getPyInterpreter());
     };
 
-  virtual SymbolicIntNode* wrap(int64_t num) { 
+  virtual SymbolicIntNode* wrap(int64_t num) {
     auto r = getPyObj().attr("wrap")(num);
     return new PythonSymbolicIntNode(r);
   }
@@ -168,7 +168,7 @@ public:
   virtual SymbolicIntNode* add(SymbolicIntNode* other) override {
     return dispatch_common_(__FUNCTION__, other);
   }
-  
+
   virtual SymbolicIntNode* sub(SymbolicIntNode* other) override {
     return dispatch_common_(__FUNCTION__, other);
   }
@@ -1152,6 +1152,13 @@ void initJITBindings(PyObject* module) {
         return std::shared_ptr<c10::SymbolicIntNode> (a->add(a->wrap(b.cast<int64_t>())));
       }
     })
+    .def("__radd__", [](std::shared_ptr<c10::SymbolicIntNode> a, py::object b) -> std::shared_ptr<c10::SymbolicIntNode> {
+      if (torch::is_symint_node(b)) {
+        return std::shared_ptr<c10::SymbolicIntNode>(a->add(b.cast<c10::SymbolicIntNode*>()));
+      } else {
+        return std::shared_ptr<c10::SymbolicIntNode> (a->add(a->wrap(b.cast<int64_t>())));
+      }
+    })
     .def("__sub__", [](std::shared_ptr<c10::SymbolicIntNode> a, py::object b) -> std::shared_ptr<c10::SymbolicIntNode> {
       if (torch::is_symint_node(b)) {
         return std::shared_ptr<c10::SymbolicIntNode>(a->sub(b.cast<c10::SymbolicIntNode*>()));
@@ -1840,11 +1847,11 @@ void initJITBindings(PyObject* module) {
   // because otherwise prim::Print() instruction won't work for JIT modules.
   auto atexit = py::module_::import("atexit");
   atexit.attr("register")(
-      py::cpp_function([]() { 
+      py::cpp_function([]() {
         setPrintHandler(getDefaultPrintHandler());
         // we need to clear SymIntTable until we have python
         // otherwise python classes are already deregistered
-        
+
         //c10::getSymIntTable().clear();
   }));
 }
