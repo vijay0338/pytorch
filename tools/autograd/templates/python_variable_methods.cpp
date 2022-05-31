@@ -110,17 +110,12 @@ static PyObject * THPVariable_size(PyObject* self, PyObject* args, PyObject* kwa
   if(r.has_torch_function()){
     return handle_torch_function(r, self, args, kwargs, THPVariableClass, "torch.Tensor");
   }
-
   if (r.idx == 0) {
     if (jit::tracer::isTracing()) {
       // will error out if a tensor has symints
       return wrap(jit::tracer::getSizeOf(self_, r.toInt64(0)));
     } else {
-      auto symint = c10::SymInt(self_.size(r.toInt64(0)));
-      if (symint.is_symbolic()) {
-        return py::cast(symint.toSymbolicIntNode()).release().ptr();
-      }
-      return wrap(self_.size(r.toInt64(0)));
+      return torch::toPyObject(self_.sym_sizes()[r.toInt64(0)]);
     }
   } else if (r.idx == 1) {
     return THPSize_NewFromSymSizes(self_);
