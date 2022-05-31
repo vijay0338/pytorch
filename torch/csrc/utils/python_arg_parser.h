@@ -392,6 +392,14 @@ inline std::vector<int64_t> PythonArgs::intlist(int i) {
 
 TORCH_API bool is_symint_node(py::handle obj);
 
+inline PyObject* toPyObject(c10::SymInt symint) {
+      if (symint.is_symbolic()) {
+        return py::cast(symint.toSymbolicIntNode()).release().ptr();
+      } else {
+        return THPUtils_packInt64(symint.data());
+      }
+}
+
 inline std::vector<c10::SymInt> PythonArgs::symintlist(int i) {
 
   if (!args[i]) {
