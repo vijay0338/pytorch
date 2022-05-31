@@ -406,6 +406,9 @@ IntArrayRef TensorImpl::strides_custom() const {
       " do not have strides");
 }
 int64_t TensorImpl::dim_custom() const {
+  if (has_symbolic_sizes_strides_) {
+    return dim_default();
+  }
   TORCH_CHECK(
       false, "Tensors of type ", tensorimpl_type_name(), " do not have dim");
 }
