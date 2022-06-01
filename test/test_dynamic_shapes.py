@@ -113,15 +113,12 @@ class ShapeEnv(object):
     def __init__(self):
         self.guards = []
         self.shape_env = {}
-        self.cpp_to_py = {}
 
     def create_symint(self, name, val):
         sympy_expr = sympy.Symbol(name)
         py_sym_int = PySymInt(sympy_expr, self)
         cpp_sym_int = torch._C.SymbolicIntNode.new_symint(py_sym_int)
         self.shape_env[sympy_expr] = val
-        print(f"in create_symint {id(cpp_sym_int)}")
-        self.cpp_to_py[id(cpp_sym_int)] = py_sym_int
         return cpp_sym_int
 
     def evaluate_expr(self, expr):
