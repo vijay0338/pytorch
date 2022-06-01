@@ -676,8 +676,6 @@ static PyObject* THPVariable_make_sym_wrapper_subclass(PyObject*, PyObject* args
       // We shouldn't need storage
       Storage storage{Storage::use_byte_size_t{}, 0, at::DataPtr{}};
 
-      // shouldn't dispatch key always be PythonKey for us
-      // if we are inlining this we should be able to hardcode it?
       tensor = at::detail::make_tensor<TensorImpl>(
           std::move(storage), options.computeDispatchKey(), options.dtype());
 
