@@ -180,7 +180,7 @@ class TestPySymInt(TestCase):
         x = create_symbolic_tensor("x", torch.randn(5, 4, 3), shape_env)
         self.assertTrue(not isinstance(x.shape[0], PySymInt))
         self.assertTrue(isinstance(x.shape[0], CPP_SYMINT_CLASS))
-        
+
         self.assertEqual(int(x.shape[0]), 5)
         self.assertEqual(int(x.shape[1]), 4)
         self.assertEqual(int(x.shape[2]), 3)
@@ -189,7 +189,7 @@ class TestPySymInt(TestCase):
         self.assertEqual(int(x.size()[1]), 4)
         self.assertTrue(isinstance(x.size()[1], CPP_SYMINT_CLASS))
         self.assertEqual(int(x.size()[2]), 3)
-        
+
         self.assertEqual(int(x.size(0)), 5)
         self.assertEqual(int(x.size(1)), 4)
         self.assertEqual(int(x.size(2)), 3)
@@ -229,7 +229,7 @@ class TestPySymInt(TestCase):
         # arithmetic expr with a symint and python int
         z = x.narrow_copy(LAST_DIM, 0, x.shape[LAST_DIM] - 1)
         self.assertEqual(int(z.shape[2]), 2)
-        
+
     @skipIfNoSympy
     def test_symint_vargs(self):
         shape_env = ShapeEnv()

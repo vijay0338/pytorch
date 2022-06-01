@@ -47,7 +47,6 @@ PyObject * THPSize_NewFromSizes(int dim, const int64_t *sizes)
 
 PyObject * THPSize_NewFromSymSizes(const at::Tensor& self_)
 {
-  HANDLE_TH_ERRORS
     auto sym_sizes = self_.sym_sizes();
 
     auto ret = THPObjectPtr(THPSizeType.tp_alloc(&THPSizeType, sym_sizes.size()));
@@ -63,9 +62,6 @@ PyObject * THPSize_NewFromSymSizes(const at::Tensor& self_)
       }
     }
     return ret.release();
-
-  Py_RETURN_NONE;
-  END_HANDLE_TH_ERRORS
 }
 
 static bool isTracedZeroDimVar(PyObject *item) {
@@ -119,8 +115,8 @@ static PyObject * THPSize_repr(THPSize *self)
     }
     auto item = PyTuple_GET_ITEM(self, i);
     auto ih = py::handle(item);
-    
-    repr += torch::is_symint_node(ih) ? 
+
+    repr += torch::is_symint_node(ih) ?
       std::string(py::str(ih)) :
       std::to_string(THPUtils_unpackLong(PyTuple_GET_ITEM(self, i)));
   }

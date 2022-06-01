@@ -617,6 +617,10 @@ static PyObject* THPVariable_make_wrapper_subclass(PyObject*, PyObject* args, Py
     data.unsafeGetTensorImpl()->set_sizes_strides_policy(c10::TensorImpl::SizesStridesPolicy::CustomStrides);
   }
 
+  if (r.toBool(11)) {
+    data.unsafeGetTensorImpl()->set_custom_device(true);
+  }
+
   return THPVariable_NewWithVar(
       (PyTypeObject*)cls,
       std::move(data),

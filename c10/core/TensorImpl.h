@@ -1307,8 +1307,8 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   }
 
   // if we are going to use sym sizes, we should be setting sym strides at the same time,
-  // otherwise it's very easy to misuse this API 
-  virtual void set_sym_sizes_and_strides(c10::SymIntArrayRef sizes, c10::SymIntArrayRef strides);
+  // otherwise it's very easy to misuse this API
+  void set_sym_sizes_and_strides(c10::SymIntArrayRef sizes, c10::SymIntArrayRef strides);
 
   /**
    * Change the size at some dimension.  This DOES NOT update strides;
