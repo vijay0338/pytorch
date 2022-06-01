@@ -1173,6 +1173,13 @@ void initJITBindings(PyObject* module) {
         return std::shared_ptr<c10::SymbolicIntNode> (a->mul(a->wrap(b.cast<int64_t>())));
       }
     })
+    .def("__rmul__", [](std::shared_ptr<c10::SymbolicIntNode> a, py::object b) -> std::shared_ptr<c10::SymbolicIntNode> {
+      if (torch::is_symint_node(b)) {
+        return std::shared_ptr<c10::SymbolicIntNode>(a->mul(b.cast<c10::SymbolicIntNode*>()));
+      } else {
+        return std::shared_ptr<c10::SymbolicIntNode> (a->mul(a->wrap(b.cast<int64_t>())));
+      }
+    })
     .def("__div__", [](std::shared_ptr<c10::SymbolicIntNode> a, py::object b) -> std::shared_ptr<c10::SymbolicIntNode> {
       if (torch::is_symint_node(b)) {
         return std::shared_ptr<c10::SymbolicIntNode>(a->div(b.cast<c10::SymbolicIntNode*>()));
