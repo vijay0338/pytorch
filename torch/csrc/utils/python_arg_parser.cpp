@@ -600,7 +600,6 @@ static bool is_int_or_symint_list(PyObject* obj, int broadcast_size) {
         PySequence_GetItem(obj, 0));
 
     if (THPUtils_checkIndex(item.ptr()) || is_symint_node(item)) {
-      std::cerr << " is_int_or_symint_list true\n";
       return true;
     }
     // NOTE: JIT tracer allows arbitrary scalar tensors to act as ints

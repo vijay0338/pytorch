@@ -1219,11 +1219,9 @@ void initJITBindings(PyObject* module) {
       return a->bool_();
     })
     .def("__int__", [](std::shared_ptr<c10::SymbolicIntNode> a) {
-      std::cerr << "invoking __int__" << std::endl;
       return a->int_();
     })
     .def("__str__", [](std::shared_ptr<c10::SymbolicIntNode> a) {
-      std::cerr << "invoking __str__" << std::endl;
       return a->str();
     });
 
