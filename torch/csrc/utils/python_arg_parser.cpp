@@ -547,16 +547,30 @@ bool is_float_or_complex_list(PyObject* obj) {
   return true;
 }
 
+static bool all_ints_in_tuple(PyObject* obj) {
+    for (auto i: c10::irange(PySequence_Size(obj))) {
+        auto item = py::reinterpret_steal<py::object>(
+        PySequence_GetItem(obj, i));
+      if (!THPUtils_checkIndex(item.ptr())) {
+        return false;
+      }
+    }
+
+    return true;
+}
+
 static bool is_int_list_(PyObject* obj, int broadcast_size) {
   if (PyTuple_Check(obj) || PyList_Check(obj)) {
     if (PySequence_Size(obj) == 0) {
       return true;
     }
-    auto item = py::reinterpret_steal<py::object>(
-        PySequence_GetItem(obj, 0));
-    if (THPUtils_checkIndex(item.ptr())) {
+    
+    if (all_ints_in_tuple(obj)) {
       return true;
     }
+
+    auto item = py::reinterpret_steal<py::object>(
+      PySequence_GetItem(obj, 0));
     // NOTE: JIT tracer allows arbitrary scalar tensors to act as ints
     // in an intlist argument. Even float or complex scalar tensors.
     return (
@@ -1109,9 +1123,9 @@ bool FunctionSignature::parse(PyObject* self, PyObject* args, PyObject* kwargs, 
     // tracer is enabled. This behavior easily leads to ambiguities, and we
     // should avoid having complex signatures that make use of it...
     } else if (allow_varargs_intlist && arg_pos == 0 && !is_kwd &&
-               (THPUtils_checkIndex(obj) || (param.type_ == 
-                ParameterType::SYM_INT_LIST && torch::is_symint_node(py::handle(obj))
-               ))) {
+                ((param.type_ == 
+                ParameterType::SYM_INT_LIST && is_int_or_symint(obj)
+               ) || all_ints_in_tuple(args))) {
       // take all positional arguments as this parameter
       // e.g. permute(1, 2, 3) -> permute((1, 2, 3))
       dst[i++] = args;
