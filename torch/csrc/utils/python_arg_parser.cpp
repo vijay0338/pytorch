@@ -559,7 +559,7 @@ static bool all_ints_in_tuple(PyObject* obj) {
     return true;
 }
 
-static bool is_int_list_(PyObject* obj, int broadcast_size) {
+static bool is_int_list(PyObject* obj, int broadcast_size) {
   if (PyTuple_Check(obj) || PyList_Check(obj)) {
     if (PySequence_Size(obj) == 0) {
       return true;
@@ -582,12 +582,11 @@ static bool is_int_list_(PyObject* obj, int broadcast_size) {
   return broadcast_size > 0 && THPUtils_checkLong(obj);
 }
 
-static bool is_int_list(PyObject* obj, int broadcast_size) {
-  return is_int_list_(obj, broadcast_size);
-}
-
 static bool is_int_or_symint(PyObject* obj) {
-  return THPUtils_checkLong(obj) || torch::is_symint_node(py::handle(obj));
+  // THPUtils_checkIndex may call __index__ or __int__
+  // which may have side effects if obj is a symint node
+  // TODO: maybe we should be using checkLong here?
+  return torch::is_symint_node(py::handle(obj)) || THPUtils_checkIndex(obj);
 }
 
 static bool is_int_or_symint_list(PyObject* obj, int broadcast_size) {
@@ -599,7 +598,7 @@ static bool is_int_or_symint_list(PyObject* obj, int broadcast_size) {
     auto item = py::reinterpret_steal<py::object>(
         PySequence_GetItem(obj, 0));
 
-    if (THPUtils_checkIndex(item.ptr()) || is_symint_node(item)) {
+    if (is_int_or_symint(item.ptr())) {
       return true;
     }
     // NOTE: JIT tracer allows arbitrary scalar tensors to act as ints
