@@ -375,10 +375,7 @@ c10::optional<Storage> ${tensor_name}_storage_saved =
 
 # If tensor_name == out_tensor_name, used to enforce (1), otherwise used for (2)
 ENFORCE_SAME_TENSOR_STORAGE = CodeTemplate(
-    """\
-if (${tensor_name}_storage_saved.has_value())
-  AT_ASSERT(${tensor_name}_storage_saved.value().is_alias_of(${out_tensor_name}.storage()));
-"""
+    """ """
 )
 
 SAVE_TENSORLIST_STORAGE = CodeTemplate(
