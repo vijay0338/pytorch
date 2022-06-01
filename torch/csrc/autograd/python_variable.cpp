@@ -674,13 +674,8 @@ static PyObject* THPVariable_make_sym_wrapper_subclass(PyObject*, PyObject* args
           std::move(storage), options.computeDispatchKey(), options.dtype());
 
         auto sym_sizes = r.symintlist(1);
-        auto int_sym_sizes = c10::fmap(sym_sizes, [](c10::SymInt s) {
-          return s.data();
-        });
         auto sym_strides = r.symintlist(2);
-        auto int_sym_strides = c10::fmap(sym_strides, [](c10::SymInt s) {
-          return s.data();
-        });
+
         TensorImpl* tensor_impl = tensor.unsafeGetTensorImpl();
 
         // TODO: this should probably be sym_sizes, sym_strides AND offset
