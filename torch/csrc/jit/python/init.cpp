@@ -1854,10 +1854,6 @@ void initJITBindings(PyObject* module) {
   atexit.attr("register")(
       py::cpp_function([]() {
         setPrintHandler(getDefaultPrintHandler());
-        // we need to clear SymIntTable until we have python
-        // otherwise python classes are already deregistered
-
-        //c10::getSymIntTable().clear();
   }));
 }
 } // namespace jit

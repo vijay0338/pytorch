@@ -14,11 +14,6 @@ std::shared_ptr<SymbolicIntNode> SymIntTable::getNode(size_t index) {
   return nodes_[index];
 }
 
-void SymIntTable::clear() {
-  std::lock_guard<std::mutex> lock(mutex_);
-  nodes_.clear();
-}
-
 c10::SymInt SymbolicIntNode::toSymInt() {
   // We will need to figure out a way
   // to dedup nodes
