@@ -75,7 +75,7 @@ class TensorMeta(torch.Tensor):
         shape: Optional[ShapeType] = None,
         strides: Optional[StrideType] = None,
         dtype: Optional[torch.dtype] = None,
-        device: Optional[Union[torch.device, str]] = None,
+        device: Optional[DeviceLikeType] = None,
     ):
 
         if isinstance(tensorlike, Number):
@@ -106,9 +106,7 @@ class TensorMeta(torch.Tensor):
         strides = inferred_strides if strides is None else tuple(strides)
         dtype = inferred_dtype if dtype is None else dtype
         device = inferred_device if device is None else device
-
-        if isinstance(device, str):
-            device = torch.device(device)
+        device = canonicalize_device(device)
 
         r = torch.Tensor._make_wrapper_subclass(  # type: ignore[attr-defined]
             cls,
@@ -489,7 +487,7 @@ def check_same_device(*args, allow_cpu_scalar_tensors):
             raise RuntimeError(msg)
 
 
-def canonicalize_device(device: Union[str, torch.device]) -> torch.device:
+def canonicalize_device(device: DeviceLikeType) -> torch.device:
     if isinstance(device, torch.device):
         return device
 
@@ -1101,20 +1099,6 @@ def reduction_dtypes(
     else:  # ALWAYS_BOOL
         result_dtype = torch.bool
     return computation_dtype, result_dtype
-
-
-def wrap_device(d: Union[str, torch.device]) -> torch.device:
-    """
-    Wraps strings into torch.device objects.
-
-    Given torch.device objects are returned unmodified.
-    """
-
-    assert isinstance(d, (str, torch.device))
-    if isinstance(d, str):
-        return torch.device(d)
-
-    return d
 
 
 def make_contiguous_strides_for(shape: ShapeType) -> Tuple[int, ...]:
