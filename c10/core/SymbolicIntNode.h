@@ -14,15 +14,15 @@ class C10_API SymbolicIntNode
   c10::SymInt toSymInt();
   virtual ~SymbolicIntNode(){};
   // these could be pure virtual when we implement LTC versions
-  virtual SymbolicIntNode* add(SymbolicIntNode* other) { TORCH_CHECK(false, "NYI"); };
-  virtual SymbolicIntNode* sub(SymbolicIntNode* other) { TORCH_CHECK(false, "NYI"); };
-  virtual SymbolicIntNode* mul(SymbolicIntNode* other) { TORCH_CHECK(false, "NYI"); };
-  virtual SymbolicIntNode* div(SymbolicIntNode* other) { TORCH_CHECK(false, "NYI"); };
-  virtual SymbolicIntNode* mod(SymbolicIntNode* other) { TORCH_CHECK(false, "NYI"); };
-  virtual SymbolicIntNode* eq(SymbolicIntNode* other) { TORCH_CHECK(false, "NYI"); };
-  virtual SymbolicIntNode* gt(SymbolicIntNode* other) { TORCH_CHECK(false, "NYI"); };
-  virtual SymbolicIntNode* lt(SymbolicIntNode* other) { TORCH_CHECK(false, "NYI"); };
-  virtual SymbolicIntNode* wrap(int64_t num) { TORCH_CHECK(false, "NYI"); };
+  virtual std::shared_ptr<SymbolicIntNode> add(std::shared_ptr<SymbolicIntNode> other) { TORCH_CHECK(false, "NYI"); };
+  virtual std::shared_ptr<SymbolicIntNode> sub(std::shared_ptr<SymbolicIntNode> other) { TORCH_CHECK(false, "NYI"); };
+  virtual std::shared_ptr<SymbolicIntNode> mul(std::shared_ptr<SymbolicIntNode> other) { TORCH_CHECK(false, "NYI"); };
+  virtual std::shared_ptr<SymbolicIntNode> div(std::shared_ptr<SymbolicIntNode> other) { TORCH_CHECK(false, "NYI"); };
+  virtual std::shared_ptr<SymbolicIntNode> mod(std::shared_ptr<SymbolicIntNode> other) { TORCH_CHECK(false, "NYI"); };
+  virtual std::shared_ptr<SymbolicIntNode> eq(std::shared_ptr<SymbolicIntNode> other) { TORCH_CHECK(false, "NYI"); };
+  virtual std::shared_ptr<SymbolicIntNode> gt(std::shared_ptr<SymbolicIntNode> other) { TORCH_CHECK(false, "NYI"); };
+  virtual std::shared_ptr<SymbolicIntNode> lt(std::shared_ptr<SymbolicIntNode> other) { TORCH_CHECK(false, "NYI"); };
+  virtual std::shared_ptr<SymbolicIntNode> wrap(int64_t num) { TORCH_CHECK(false, "NYI"); };
   virtual bool bool_() { TORCH_CHECK(false, "NYI"); };
   virtual int64_t int_() { TORCH_CHECK(false, "NYI"); }
   virtual std::string str() { TORCH_CHECK(false, "NYI"); };
