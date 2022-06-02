@@ -40,6 +40,7 @@
 //      they only bind to Tensor).
 
 
+#include <pybind11/pytypes.h>
 #include <torch/csrc/python_headers.h>
 
 #include <torch/csrc/Stream.h>
@@ -418,6 +419,11 @@ inline std::vector<c10::SymInt> PythonArgs::symintlist(int i) {
   const auto size1 = signature.params[i].size;
   if (size1 > 0 && THPUtils_checkLong(args[i])) {
     return std::vector<c10::SymInt>(size1, c10::SymInt(THPUtils_unpackIndex(args[i])));
+  }
+
+  if (size1 > 0 && torch::is_symint_node(py::handle(args[i]))) {
+    auto si = py::handle(args[i]).cast<c10::SymbolicIntNode*>()->toSymInt();
+    return std::vector<c10::SymInt>(size1, si);
   }
 
   PyObject* arg = args[i];

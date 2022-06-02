@@ -568,10 +568,8 @@ static PyObject* THPVariable_make_wrapper_subclass(PyObject*, PyObject* args, Py
   // NB: pin_memory doesn't actually do anything
   // TODO: strides variant?
   static PythonArgParser parser({
-      "_make_wrapper_subclass(PyObject* cls, IntArrayRef size, *, IntArrayRef? strides=None, "
-      "int64_t? storage_offset=None, MemoryFormat? memory_format=None, ScalarType dtype=None, "
-      "Layout layout=torch.strided, Device device=None, bool pin_memory=False, bool requires_grad=False, "
-      "c10::string_view? dispatch_sizes_strides_policy=None, bool dispatch_device=False)",
+    "_make_wrapper_subclass(PyObject* cls, IntArrayRef size, *, IntArrayRef? strides=None, int64_t? storage_offset=None, MemoryFormat? memory_format=None, ScalarType dtype=None, Layout layout=torch.strided, Device device=None, bool pin_memory=False, bool requires_grad=False, bool dispatch_strides=False, bool dispatch_device=False)",
+    "_make_wrapper_subclass(PyObject* cls, SymIntArrayRef size, SymIntArrayRef strides, int64_t? storage_offset=None, *, MemoryFormat? memory_format=None, ScalarType dtype=None, Layout layout=torch.strided, Device device=None, bool pin_memory=False, bool requires_grad=False, bool dispatch_strides=False, bool dispatch_device=False)"
   });
   ParsedArgs<12> parsed_args{};
   auto r = parser.parse(args, kwargs, parsed_args);
@@ -604,70 +602,21 @@ static PyObject* THPVariable_make_wrapper_subclass(PyObject*, PyObject* args, Py
   // data
   // TODO: for_blob produces non-resizable tensors, we might want this to be
   // resizable (have to define a custom allocator in that case)
-  auto data = at::for_blob(nullptr, r.intlist(1))
-        .strides(r.intlistOptional(2))
-        .storage_offset(r.toInt64Optional(3))
-        .context(nullptr, [](void *ctx) {})
-        .target_device(options.device())  // TODO: this shouldn't be necessary if it came from options
-        .options(options)
-        .make_tensor();
-  data.set_requires_grad(r.toBool(9));
 
-  if (r.toBool(10)) {
-    data.unsafeGetTensorImpl()->set_sizes_strides_policy(c10::TensorImpl::SizesStridesPolicy::CustomStrides);
-  }
+  Tensor tensor;
+  if (r.idx == 0) {
+    auto tensor = at::for_blob(nullptr, r.intlist(1))
+          .strides(r.intlistOptional(2))
+          .storage_offset(r.toInt64Optional(3))
+          .context(nullptr, [](void *ctx) {})
+          .target_device(options.device())  // TODO: this shouldn't be necessary if it came from options
+          .options(options)
+          .make_tensor();
 
-  if (r.toBool(11)) {
-    data.unsafeGetTensorImpl()->set_custom_device(true);
-  }
-
-  return THPVariable_NewWithVar(
-      (PyTypeObject*)cls,
-      std::move(data),
-      c10::impl::PyInterpreterStatus::DEFINITELY_UNINITIALIZED);
-  END_HANDLE_TH_ERRORS
-}
-
-
-static PyObject* THPVariable_make_sym_wrapper_subclass(PyObject*, PyObject* args, PyObject* kwargs) {
-  HANDLE_TH_ERRORS
-  // NB: pin_memory doesn't actually do anything
-  // TODO: strides variant?
-  static PythonArgParser parser({
-    "_make_wrapper_subclass(PyObject* cls, SymIntArrayRef size, SymIntArrayRef strides, int64_t? storage_offset=None, *, MemoryFormat? memory_format=None, ScalarType dtype=None, Layout layout=torch.strided, Device device=None, bool pin_memory=False, bool requires_grad=False)",
-  });
-  ParsedArgs<11> parsed_args{};
-  auto r = parser.parse(args, kwargs, parsed_args);
-  PyObject* cls = r.pyobject(0);
-
-  TORCH_CHECK_TYPE(PyType_Check(cls), "cls must be a type (got ", Py_TYPE(cls)->tp_name, ")");
-
-  // This is an important safety check; without it, the default behavior will be
-  // to continue on to the underlying CPU/CUDA kernel advertised by the dispatch
-  // key, which will immediately segfault because the data pointer is null.  By
-  // forcing users to define __torch_dispatch__ we ensure this does not happen
-  // TODO: This check is not complete; because the user can disable torch
-  // dispatch and then go again, triggering segfault.  TBH I'm thinking I want
-  // to delete this function entirely
-  py::object attr = PyObject_FastGetAttrString(cls, "__torch_dispatch__");
-  TORCH_CHECK_TYPE(attr.ptr() != nullptr && attr.ptr() != torch::disabled_torch_dispatch_impl()
-,
-    ((PyTypeObject*)cls)->tp_name, " must define __torch_dispatch__");
-
-  const auto options = TensorOptions()
-    .dtype(r.scalartype(5))
-    .device(r.device(7))
-    .layout(r.layoutOptional(6))
-    // NB: long standing issue, requires_grad is not respected here; you
-    // have to set it post facto, see https://github.com/pytorch/pytorch/issues/26428
-    // .requires_grad(r.toBool(7))
-    .pinned_memory(r.toBool(8));
-
-    // don't bother releasing GIL here, as we are not allocating any nontrivial
-    // data
-
-    Tensor tensor;
-    {
+    if (r.toBool(10)) {
+      tensor.unsafeGetTensorImpl()->set_sizes_strides_policy(c10::TensorImpl::SizesStridesPolicy::CustomStrides);
+    }
+  } else {
       AutoDispatchBelowADInplaceOrView guard{}; // TODO: Remove.
       tracer::impl::NoTracerDispatchMode tracer_guard{};
 
@@ -690,9 +639,16 @@ static PyObject* THPVariable_make_sym_wrapper_subclass(PyObject*, PyObject* args
         if (storage_offset) {
           tensor_impl->set_storage_offset(*storage_offset);
         }
-        
-      tensor.set_requires_grad(r.toBool(9));
-    }
+
+        // TODO: r.toBool(10)/dispatch_strides is ignored since setting sym_sizes/sym_strides
+        // will set a different custom policy
+  }
+
+  tensor.set_requires_grad(r.toBool(9));
+
+  if (r.toBool(11)) {
+    tensor.unsafeGetTensorImpl()->set_custom_device(true);
+  }
 
   return THPVariable_NewWithVar(
       (PyTypeObject*)cls,
@@ -1422,8 +1378,6 @@ static PyMethodDef extra_methods[] = {
   {"_make_subclass", castPyCFunctionWithKeywords(THPVariable_make_subclass),
     METH_STATIC | METH_VARARGS | METH_KEYWORDS, nullptr},
   {"_make_wrapper_subclass", castPyCFunctionWithKeywords(THPVariable_make_wrapper_subclass),
-    METH_STATIC | METH_VARARGS | METH_KEYWORDS, nullptr},
-  {"_make_sym_wrapper_subclass", castPyCFunctionWithKeywords(THPVariable_make_sym_wrapper_subclass),
     METH_STATIC | METH_VARARGS | METH_KEYWORDS, nullptr},
   {"_fix_weakref", THPVariable_fix_weakref,
     METH_NOARGS, nullptr},

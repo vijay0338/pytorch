@@ -139,11 +139,11 @@ class FakeSymbolicTensor(torch.Tensor):
         # sym_strides doesn't work yet
         # TODO: this is wrong in general
         offset = 0
-        r = torch.Tensor._make_sym_wrapper_subclass(
+        r = torch.Tensor._make_wrapper_subclass(
             cls, sym_shape,
             create_contiguous(sym_shape), offset,
             dtype=dtype, layout=layout, requires_grad=requires_grad,
-            device=device
+            device=device,
         )
         return r
 
