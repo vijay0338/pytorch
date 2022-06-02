@@ -115,7 +115,7 @@ static PyObject * THPVariable_size(PyObject* self, PyObject* args, PyObject* kwa
       // will error out if a tensor has symints
       return wrap(jit::tracer::getSizeOf(self_, r.toInt64(0)));
     } else {
-      return torch::toPyObject(self_.sym_sizes()[r.toInt64(0)]);
+      return torch::toPyObject(self_.sym_size(r.toInt64(0)));
     }
   } else if (r.idx == 1) {
     return THPSize_NewFromSymSizes(self_);
