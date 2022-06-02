@@ -5425,6 +5425,12 @@ def sample_inputs_gelu(self, device, dtype, requires_grad, **kwargs):
                 kwargs=dict(approximate=approximate)))
     return tensors
 
+
+def error_inputs_gelu(op, device, **kwargs):
+    yield ErrorInput(SampleInput(make_tensor((), dtype=torch.float, device=device), kwargs={"approximate": "asdf"}),
+                     error_regex="approximate argument must be either")
+
+
 def sample_inputs_max_min_reduction_with_dim(op_info, device, dtype, requires_grad, **kwargs):
     inputs = []
     args_for_reduction_with_dim = (
@@ -14629,6 +14635,7 @@ op_db: List[OpInfo] = [
            aten_name="gelu",
            aten_backward_name='gelu_backward',
            ref=reference_gelu if TEST_SCIPY else _NOTHING,
+           error_inputs_func=error_inputs_gelu,
            supports_autograd=True,
            assert_autodiffed=True,
            sample_inputs_func=sample_inputs_gelu,
@@ -19496,6 +19503,15 @@ python_ref_db = [
     ElementwiseUnaryPythonRefInfo(
         "_refs.nn.functional.elu",
         torch_opinfo_name="nn.functional.elu",
+    ),
+    PythonRefInfo(
+        "_refs.nn.functional.gelu",
+        torch_opinfo_name="nn.functional.gelu",
+        decorators=(
+            # Need FakeTensor support for meta coverage
+            DecorateInfo(unittest.expectedFailure, 'TestCommon', 'test_python_ref_meta',),
+            DecorateInfo(unittest.expectedFailure, 'TestCommon', 'test_python_ref',),
+        ),
     ),
     PythonRefInfo(
         "_refs.nn.functional.leaky_relu",
