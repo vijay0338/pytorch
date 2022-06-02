@@ -5,7 +5,9 @@ ONNX Runtime is required, and is used as the ONNX backend for export verificatio
 
 import contextlib
 import copy
+import difflib
 import io
+import itertools
 import os
 import tempfile
 import warnings
@@ -14,8 +16,9 @@ from typing import Any, Mapping, Optional, Sequence, Tuple, Union
 import numpy as np
 
 import torch
-from torch import Tensor
-from torch.onnx.utils import unpack_quantized_tensor
+import torch._C._onnx as _C_onnx
+from torch import _C
+from torch.onnx import _constants, _experimental, _globals, symbolic_helper, utils
 
 _ORT_PROVIDERS = ("CPUExecutionProvider",)
 
@@ -31,7 +34,7 @@ def _flatten_tuples(elem):
 
 
 def _to_numpy(elem):
-    if isinstance(elem, Tensor):
+    if isinstance(elem, torch.Tensor):
         if elem.requires_grad:
             return elem.detach().cpu().numpy()
         else:
@@ -59,7 +62,7 @@ def _inline_flatten_list(inputs, res_list):
 def _unpack_to_numpy(values):
     value_unpacked = []
     for value in values:
-        value_unpacked.extend(unpack_quantized_tensor(value))
+        value_unpacked.extend(utils.unpack_quantized_tensor(value))
     return [_to_numpy(v) for v in value_unpacked]
 
 
@@ -131,7 +134,7 @@ def _prepare_input_for_pytorch(args, kwargs):
         args: positional arguments for PyTorch model forward method.
         kwargs: keyword arguments for PyTorch model forward method.
     """
-    if isinstance(args, (Tensor, dict)):
+    if isinstance(args, (torch.Tensor, dict)):
         args = (args,)
     # In-place operators will update input tensor data as well.
     # Thus inputs are replicated before every forward call.
@@ -241,6 +244,219 @@ def _compare_ort_pytorch_model(
     if additional_test_inputs:
         for test_input_args in additional_test_inputs:
             compare_ort_pytorch_model_with_input(test_input_args, {})
+
+
+class _GraphDiff:
+    """A class to represent the difference between two graphs."""
+
+    def __init__(self, graph_a: _C.Graph, graph_b: _C.Graph):
+        """Construct a _GraphDiff object.
+
+        Args:
+            graph_a (_C.Graph): First graph to compare.
+            graph_b (_C.Graph): Second graph to compare.
+        """
+        self.graph_a = graph_a
+        self.graph_b = graph_b
+
+    def __str__(self):
+        """See function :func:`diff_report`."""
+        return self.diff_report()
+
+    def _indent(self, lines: str) -> str:
+        return "\n".join(["\t" + line for line in lines.splitlines()])
+
+    def diff_report(self) -> str:
+        """Return a string representation of the graph difference.
+
+        The report shows the first pair of nodes that diverges. It also shows the source
+        location of the pair of nodes.
+
+        Returns:
+            graph_diff_report (str): A string representation of the graph difference.
+        """
+        graph_a = self.graph_a
+        graph_b = self.graph_b
+
+        graph_a_str = str(graph_a)
+        graph_b_str = str(graph_b)
+
+        if graph_a_str == graph_b_str:
+            return ""
+
+        graph_diff = difflib.ndiff(
+            graph_a_str.splitlines(True), graph_b_str.splitlines(True)
+        )
+        graph_diff_report = ["Graph diff:", self._indent("".join(graph_diff))]
+
+        for node_a, node_b in itertools.zip_longest(graph_a.nodes(), graph_b.nodes()):
+            if str(node_a) != str(node_b):
+                graph_diff_report.append("First diverging operator:")
+                node_diff = difflib.ndiff(
+                    str(node_a).splitlines(True), str(node_b).splitlines(True)
+                )
+                source_printout = ["node diff:", self._indent("".join(node_diff))]
+
+                stack_a = node_a.sourceRange() if node_a else None
+                if stack_a:
+                    source_printout.extend(
+                        ["Former source location:", self._indent(str(stack_a))]
+                    )
+                stack_b = node_b.sourceRange() if node_b else None
+                if stack_b:
+                    source_printout.extend(
+                        ["Latter source location:", self._indent(str(stack_b))]
+                    )
+
+                graph_diff_report.extend(source_printout)
+
+                break
+
+        return "\n".join(graph_diff_report)
+
+
+def _check_jit_model_diff(
+    model: Union[torch.nn.Module, torch.jit.ScriptModule],
+    test_input_sets: Sequence[Tuple[Tuple[Any, ...], Mapping[str, Any]]],
+    export_options: _experimental.ExportOptions,
+) -> str:
+    if len(test_input_sets) < 2:
+        raise ValueError("Need at least two set of test inputs to compare.")
+
+    training = export_options.training
+    verbose = export_options.verbose
+
+    with utils.exporter_context(model, training, verbose):
+        ref_jit_graph = None
+        for args, kwargs in test_input_sets:
+            export_inputs = _prepare_input_for_export(args, kwargs)
+            model = utils._pre_trace_quant_model(model, export_inputs)
+            jit_graph, _, _, _ = utils._create_jit_graph(model, export_inputs)
+
+            if ref_jit_graph is None:
+                ref_jit_graph = jit_graph
+                continue
+
+            graph_diff_report = _GraphDiff(ref_jit_graph, jit_graph).diff_report()
+            if graph_diff_report:
+                return graph_diff_report
+
+    return ""
+
+
+def _check_onnx_model_diff(
+    model: Union[torch.nn.Module, torch.jit.ScriptModule],
+    test_input_sets: Sequence[Tuple[Tuple[Any, ...], Mapping[str, Any]]],
+    export_options: _experimental.ExportOptions,
+) -> str:
+    if len(test_input_sets) < 2:
+        raise ValueError("Need at least two set of test inputs to compare.")
+
+    # TODO: refactor utils.py to remove duplicated code of context setup.
+    opset_version = export_options.opset_version
+    operator_export_type = export_options.operator_export_type
+    export_modules_as_functions = export_options.export_modules_as_functions
+    training = export_options.training
+    verbose = export_options.verbose
+    dynamic_axes = export_options.dynamic_axes
+    input_names = export_options.input_names
+    output_names = export_options.output_names
+
+    if opset_version is None:
+        opset_version = _constants.onnx_default_opset
+
+    export_modules_as_functions = utils._setup_trace_module_map(
+        model, export_modules_as_functions
+    )
+
+    if not operator_export_type:
+        if _C_onnx._CAFFE2_ATEN_FALLBACK:
+            operator_export_type = _C_onnx.OperatorExportTypes.ONNX_ATEN_FALLBACK
+        else:
+            operator_export_type = _C_onnx.OperatorExportTypes.ONNX
+
+    _globals.GLOBALS.export_onnx_opset_version = opset_version
+    _globals.GLOBALS.operator_export_type = operator_export_type
+
+    with utils.exporter_context(model, training, verbose):
+        val_do_constant_folding = utils._decide_constant_folding(
+            export_options.do_constant_folding, operator_export_type, training
+        )
+
+        if dynamic_axes is None:
+            dynamic_axes = {}
+        utils._validate_dynamic_axes(dynamic_axes, model, input_names, output_names)
+
+        ref_onnx_graph = None
+        for arg, kwargs in test_input_sets:
+            export_inputs = _prepare_input_for_export(arg, kwargs)
+            export_inputs = utils._decide_input_format(model, export_inputs)
+            onnx_graph, _, _ = utils._model_to_graph(
+                model,
+                export_inputs,
+                verbose,
+                input_names,
+                output_names,
+                operator_export_type,
+                val_do_constant_folding,
+                training=training,
+                dynamic_axes=dynamic_axes,
+            )
+
+            if ref_onnx_graph is None:
+                ref_onnx_graph = onnx_graph
+                continue
+
+            graph_diff_report = _GraphDiff(ref_onnx_graph, onnx_graph).diff_report()
+            if graph_diff_report:
+                return graph_diff_report
+
+    return ""
+
+
+def check_export_model_diff(
+    model: Union[torch.nn.Module, torch.jit.ScriptModule],
+    test_input_sets: Sequence[Tuple[Tuple[Any, ...], Mapping[str, Any]]],
+    export_options: Optional[_experimental.ExportOptions] = None,
+) -> str:
+    """Verify exported model discrepancy between different sets of inputs.
+
+    A graph is exported for each set of inputs. The exported graphs are then compared
+    to each other, and discrepancies of first pair of nodes are reported. This function
+    first checks the jit graph, and then the onnx graph.
+
+    Unless otherwise specified, the jit/ONNX graph is expected to be the same, regardless
+    of the inputs it used for exporting. A discrepancy would imply the graph exported is
+    not accurate when running with other set of inputs, which will typically results in
+    runtime error or output mismatches.
+
+    Args:
+        model (torch.nn.Module or torch.jit.ScriptModule): The model to be exported.
+        test_input_sets (Sequence[Tuple[Tuple[Any, ...], Mapping[str, Any]]]): A sequence
+            of input sets to be used to export the model. Each input set is a pair of
+            (args, kwargs).
+        export_options (_experimental.ExportOptions, optional): An _experimental.ExportOptions
+            object that controls the export behavior.
+
+    Returns:
+        str: A string containing the diff of the exported models.
+    """
+    export_options = (
+        _experimental.ExportOptions() if export_options is None else export_options
+    )
+
+    # TODO: refactor utils.py to remove duplicated code of context setup.
+    opset_version = export_options.opset_version
+    if opset_version is None:
+        opset_version = _constants.onnx_default_opset
+    symbolic_helper._set_opset_version(opset_version)
+    symbolic_helper._set_onnx_shape_inference(True)
+
+    jit_diff_report = _check_jit_model_diff(model, test_input_sets, export_options)
+    if jit_diff_report:
+        return jit_diff_report
+
+    return _check_onnx_model_diff(model, test_input_sets, export_options)
 
 
 def verify(
