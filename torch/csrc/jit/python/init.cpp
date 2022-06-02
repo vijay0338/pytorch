@@ -126,6 +126,12 @@ using ::c10::FunctionSchema;
 using caffe2::serialize::PyTorchStreamReader;
 using caffe2::serialize::PyTorchStreamWriter;
 
+  static std::shared_ptr<c10::SymbolicIntNode> toSymIntNode(std::shared_ptr<c10::SymbolicIntNode> a, py::object b) {
+      return torch::is_symint_node(b) ? 
+        b.cast<std::shared_ptr<c10::SymbolicIntNode>>() :
+        a->wrap(b.cast<int64_t>());
+  }
+
 class PythonSymbolicIntNode: public c10::SymbolicIntNode {
 public:
   PythonSymbolicIntNode(py::object pyobj):
@@ -133,26 +139,24 @@ public:
       pyobj_ = std::make_shared<c10::SafePyObject>(pyobj.release().ptr(), getPyInterpreter());
     };
 
-  virtual std::shared_ptr<SymbolicIntNode> wrap(int64_t num) {
+  virtual std::shared_ptr<SymbolicIntNode> wrap(int64_t num) override {
     auto r = getPyObj().attr("wrap")(num);
     return std::shared_ptr<SymbolicIntNode>(new PythonSymbolicIntNode(r));
   }
 
-  virtual bool bool_() {
+  virtual bool bool_() override {
     py::gil_scoped_acquire acquire;
-    return py::str(getPyObj().attr("__bool__")()).is(py::str(Py_True));
-    // TODO: test getPyObj().attr("__bool__")().is(py::object(Py_True))
+    return getPyObj().attr("__bool__")().is(py::handle(Py_True));
   }
 
-  virtual int64_t int_() {
+  virtual int64_t int_() override {
     py::gil_scoped_acquire acquire;
     return getPyObj().attr("__int__")().cast<int64_t>();
   }
 
-  virtual std::string str() {
+  virtual std::string str() override {
     py::gil_scoped_acquire acquire;
     return getPyObj().attr("__str__")().cast<std::string>();
-    // TODO: can we just do getPyObj().cast<string>?
   }
 
   virtual std::shared_ptr<SymbolicIntNode> dispatch_common_(const char* fname, std::shared_ptr<SymbolicIntNode> other) {
@@ -163,7 +167,6 @@ public:
     return std::shared_ptr<SymbolicIntNode>(new PythonSymbolicIntNode(r));
   }
 
-  //TODO: FOREACH MACRO?
   virtual std::shared_ptr<SymbolicIntNode> add(std::shared_ptr<SymbolicIntNode> other ) override {
     return dispatch_common_(__FUNCTION__, other);
   }
@@ -1145,76 +1148,45 @@ void initJITBindings(PyObject* module) {
       std::cerr << "symint for " << n->toSymInt() << std::endl;
       //return false;
     })
-    // FOREACH MACRO?
     .def("__add__", [](std::shared_ptr<c10::SymbolicIntNode> a, py::object b) -> std::shared_ptr<c10::SymbolicIntNode> {
-      if (torch::is_symint_node(b)) {
-        return std::shared_ptr<c10::SymbolicIntNode>(a->add(b.cast<std::shared_ptr<c10::SymbolicIntNode>>()));
-      } else {
-        return std::shared_ptr<c10::SymbolicIntNode> (a->add(a->wrap(b.cast<int64_t>())));
-      }
+      auto snb = toSymIntNode(a, b);
+      return a->add(snb);
     })
     .def("__radd__", [](std::shared_ptr<c10::SymbolicIntNode> a, py::object b) -> std::shared_ptr<c10::SymbolicIntNode> {
-      if (torch::is_symint_node(b)) {
-        return std::shared_ptr<c10::SymbolicIntNode>(a->add(b.cast<std::shared_ptr<c10::SymbolicIntNode>>()));
-      } else {
-        return std::shared_ptr<c10::SymbolicIntNode> (a->add(a->wrap(b.cast<int64_t>())));
-      }
+      auto snb = toSymIntNode(a, b);
+      return a->add(snb);
     })
     .def("__sub__", [](std::shared_ptr<c10::SymbolicIntNode> a, py::object b) -> std::shared_ptr<c10::SymbolicIntNode> {
-      if (torch::is_symint_node(b)) {
-        return std::shared_ptr<c10::SymbolicIntNode>(a->sub(b.cast<std::shared_ptr<c10::SymbolicIntNode>>()));
-      } else {
-        return std::shared_ptr<c10::SymbolicIntNode> (a->sub(a->wrap(b.cast<int64_t>())));
-      }
+      auto snb = toSymIntNode(a, b);
+      return a->sub(snb);
     })
     .def("__mul__", [](std::shared_ptr<c10::SymbolicIntNode> a, py::object b) -> std::shared_ptr<c10::SymbolicIntNode> {
-      if (torch::is_symint_node(b)) {
-        return std::shared_ptr<c10::SymbolicIntNode>(a->mul(b.cast<std::shared_ptr<c10::SymbolicIntNode>>()));
-      } else {
-        return std::shared_ptr<c10::SymbolicIntNode> (a->mul(a->wrap(b.cast<int64_t>())));
-      }
+      auto snb = toSymIntNode(a, b);
+      return a->mul(snb);
     })
     .def("__rmul__", [](std::shared_ptr<c10::SymbolicIntNode> a, py::object b) -> std::shared_ptr<c10::SymbolicIntNode> {
-      if (torch::is_symint_node(b)) {
-        return std::shared_ptr<c10::SymbolicIntNode>(a->mul(b.cast<std::shared_ptr<c10::SymbolicIntNode>>()));
-      } else {
-        return std::shared_ptr<c10::SymbolicIntNode> (a->mul(a->wrap(b.cast<int64_t>())));
-      }
+      auto snb = toSymIntNode(a, b);
+      return a->mul(snb);
     })
     .def("__div__", [](std::shared_ptr<c10::SymbolicIntNode> a, py::object b) -> std::shared_ptr<c10::SymbolicIntNode> {
-      if (torch::is_symint_node(b)) {
-        return std::shared_ptr<c10::SymbolicIntNode>(a->div(b.cast<std::shared_ptr<c10::SymbolicIntNode>>()));
-      } else {
-        return std::shared_ptr<c10::SymbolicIntNode> (a->div(a->wrap(b.cast<int64_t>())));
-      }
+      auto snb = toSymIntNode(a, b);
+      return a->div(snb);
     })
     .def("__mod__", [](std::shared_ptr<c10::SymbolicIntNode> a, py::object b) -> std::shared_ptr<c10::SymbolicIntNode> {
-      if (torch::is_symint_node(b)) {
-        return std::shared_ptr<c10::SymbolicIntNode>(a->mod(b.cast<std::shared_ptr<c10::SymbolicIntNode>>()));
-      } else {
-        return std::shared_ptr<c10::SymbolicIntNode> (a->mod(a->wrap(b.cast<int64_t>())));
-      }
+      auto snb = toSymIntNode(a, b);
+      return a->mod(snb);
     })
     .def("__eq__", [](std::shared_ptr<c10::SymbolicIntNode> a, py::object b) -> std::shared_ptr<c10::SymbolicIntNode> {
-      if (torch::is_symint_node(b)) {
-        return std::shared_ptr<c10::SymbolicIntNode>(a->eq(b.cast<std::shared_ptr<c10::SymbolicIntNode>>()));
-      } else {
-        return std::shared_ptr<c10::SymbolicIntNode> (a->eq(a->wrap(b.cast<int64_t>())));
-      }
+      auto snb = toSymIntNode(a, b);
+      return a->eq(snb);
     })
     .def("__gt__", [](std::shared_ptr<c10::SymbolicIntNode> a, py::object b) {
-      if (torch::is_symint_node(b)) {
-        return std::shared_ptr<c10::SymbolicIntNode>(a->gt(b.cast<std::shared_ptr<c10::SymbolicIntNode>>()));
-      } else {
-        return std::shared_ptr<c10::SymbolicIntNode> (a->gt(a->wrap(b.cast<int64_t>())));
-      }
+      auto snb = toSymIntNode(a, b);
+      return a->gt(snb);
     })
     .def("__lt__", [](std::shared_ptr<c10::SymbolicIntNode> a, py::object b) -> std::shared_ptr<c10::SymbolicIntNode> {
-      if (torch::is_symint_node(b)) {
-        return std::shared_ptr<c10::SymbolicIntNode>(a->lt(b.cast<std::shared_ptr<c10::SymbolicIntNode>>()));
-      } else {
-        return std::shared_ptr<c10::SymbolicIntNode> (a->lt(a->wrap(b.cast<int64_t>())));
-      }
+      auto snb = toSymIntNode(a, b);
+      return a->lt(snb);
     })
     .def("__bool__", [](std::shared_ptr<c10::SymbolicIntNode> a) {
       return a->bool_();
