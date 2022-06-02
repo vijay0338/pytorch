@@ -98,7 +98,7 @@ magic_methods = {
 }
 
 for method, func in magic_methods.items():
-    method_name = f'__{method}__'
+    method_name = f'{method}'
     def create_magic_impl(func):
         def magic_impl(self, other):
             if isinstance(other, PySymInt):

@@ -158,9 +158,8 @@ public:
   virtual SymbolicIntNode* dispatch_common_(const char* fname, SymbolicIntNode* other) {
     auto pother = dynamic_cast<PythonSymbolicIntNode*>(other);
     TORCH_CHECK(pother);
-    auto magic_fname = std::string("__") + fname + std::string("__");
     py::gil_scoped_acquire acquire;
-    auto r = getPyObj().attr(magic_fname.c_str())(pother->getPyObj());
+    auto r = getPyObj().attr(fname)(pother->getPyObj());
     return new PythonSymbolicIntNode(r);
   }
 
