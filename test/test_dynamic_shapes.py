@@ -1,11 +1,12 @@
+from torch._C import _disabled_torch_function_impl
+from torch.testing._internal.jit_utils import JitTestCase
+from torch.testing._internal.common_utils import run_tests, TestCase
+import unittest
 import torch
 from torch.utils._pytree import tree_map
 from contextlib import contextmanager
 aten = torch.ops.aten
-import unittest
 
-from torch.testing._internal.common_utils import run_tests, TestCase
-from torch.testing._internal.jit_utils import JitTestCase
 
 try:
     import sympy
@@ -14,7 +15,6 @@ except ImportError:
     HAS_SYMPY = False
 skipIfNoSympy = unittest.skipIf(not HAS_SYMPY, "no sympy")
 
-from torch._C import _disabled_torch_function_impl
 
 @contextmanager
 def no_dispatch():
@@ -24,7 +24,9 @@ def no_dispatch():
     finally:
         del guard
 
+
 meta_funcs = {}
+
 
 def register_meta(op):
     def decorator(f):
@@ -34,9 +36,11 @@ def register_meta(op):
         return f
     return decorator
 
+
 @register_meta([aten.add.Tensor, aten.sub.Tensor])
 def binary_meta(a, b):
     return a.new_empty(a.shape)
+
 
 @register_meta(aten.cat.default)
 def cat_meta(tensors, dim=0):
@@ -51,6 +55,7 @@ def cat_meta(tensors, dim=0):
     new_shape = list(shape)
     new_shape[dim] = concat_length
     return tensors[0].new_empty(new_shape)
+
 
 @register_meta([aten.narrow_copy.SymInt])
 def narrow_copy_symint_meta(a, dim, start, length, **kwargs):
@@ -85,6 +90,7 @@ class PySymInt(object):
     def __bool__(self):
         return bool(self.shape_env.evaluate_expr(self.expr))
 
+
 magic_methods = {
     'add': lambda a, b: a + b,
     'radd': lambda a, b: a + b,
@@ -99,6 +105,7 @@ magic_methods = {
 
 for method, func in magic_methods.items():
     method_name = f'{method}'
+
     def create_magic_impl(func):
         def magic_impl(self, other):
             if isinstance(other, PySymInt):
@@ -108,6 +115,7 @@ for method, func in magic_methods.items():
 
     # this should be wrapped transparently into torch._C.SymbolicIntNode
     setattr(PySymInt, method_name, create_magic_impl(func))
+
 
 class ShapeEnv(object):
     def __init__(self):
@@ -132,6 +140,7 @@ def create_contiguous(shape):
     for dim in reversed(shape[:-1]):
         strides.append(dim * strides[-1])
     return list(reversed(strides))
+
 
 class FakeSymbolicTensor(torch.Tensor):
     @staticmethod
@@ -166,11 +175,13 @@ class FakeSymbolicTensor(torch.Tensor):
 
 
 def create_symbolic_tensor(name, arg, shape_env):
-   sym_shapes = tuple([shape_env.create_symint(f"{name}_{idx}", val) for idx, val in enumerate(arg.size())])
-   sym_strides = tuple([shape_env.create_symint(f"{name}_{idx}_stride", val) for idx, val in enumerate(arg.stride())])
-   return FakeSymbolicTensor(sym_shapes, sym_strides, arg.dtype, arg.layout, arg.requires_grad, arg.device)
+    sym_shapes = tuple([shape_env.create_symint(f"{name}_{idx}", val) for idx, val in enumerate(arg.size())])
+    sym_strides = tuple([shape_env.create_symint(f"{name}_{idx}_stride", val) for idx, val in enumerate(arg.stride())])
+    return FakeSymbolicTensor(sym_shapes, sym_strides, arg.dtype, arg.layout, arg.requires_grad, arg.device)
+
 
 CPP_SYMINT_CLASS = type(torch._C.SymbolicIntNode.new_symint(1))
+
 
 class TestPySymInt(TestCase):
 
@@ -287,6 +298,7 @@ class TestPySymInt(TestCase):
         self.assertTrue(str(x.shape[0]), str(gt_op.args[0]))
         self.assertTrue(str(expand_x.shape[1]), str(x.shape[0]))
         self.assertTrue(str(expand_x.shape[1]), str(result.shape[0]))
+
 
 if __name__ == '__main__':
     run_tests()
