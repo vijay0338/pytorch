@@ -1,8 +1,13 @@
+# Only used for PyTorch open source BUCK build
+
 """Provides macros for queries type information."""
 
 _SELECT_TYPE = type(select({"DEFAULT": []}))
 
 def is_select(thing):
+    if repository_name() != "@":
+        fail("This file is only for open source PyTorch build. Use the one in fbsource/tools instead!")
+
     return type(thing) == _SELECT_TYPE
 
 def is_unicode(arg):

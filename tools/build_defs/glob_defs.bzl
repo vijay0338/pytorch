@@ -1,3 +1,5 @@
+# Only used for PyTorch open source BUCK build
+
 """Provides utility macros for working with globs."""
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
@@ -26,6 +28,9 @@ def subdir_glob(glob_specs, exclude = None, prefix = ""):
     Returns:
       A dict of sub-directory relative paths to full paths.
     """
+    if repository_name() != "@":
+        fail("This file is only for open source PyTorch build. Use the one in fbsource/tools instead!")
+
     if exclude == None:
         exclude = []
 
