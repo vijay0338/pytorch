@@ -1064,7 +1064,7 @@ bool FunctionSignature::parse(PyObject* self, PyObject* args, PyObject* kwargs, 
 
   // if there is a single positional IntArrayRef argument, i.e. expand(..), view(...),
   // allow a var-args style IntArrayRef, so expand(5,3) behaves as expand((5,3))
-  if (max_pos_args == 1 && (params[0].type_ == ParameterType::INT_LIST || 
+  if (max_pos_args == 1 && (params[0].type_ == ParameterType::INT_LIST ||
   params[0].type_ == ParameterType::SYM_INT_LIST)) {
     allow_varargs_intlist = true;
   }
@@ -1122,7 +1122,7 @@ bool FunctionSignature::parse(PyObject* self, PyObject* args, PyObject* kwargs, 
     // tracer is enabled. This behavior easily leads to ambiguities, and we
     // should avoid having complex signatures that make use of it...
     } else if (allow_varargs_intlist && arg_pos == 0 && !is_kwd &&
-                ((param.type_ == 
+                ((param.type_ ==
                 ParameterType::SYM_INT_LIST && is_int_or_symint(obj)
                ) || all_ints_in_tuple(args))) {
       // take all positional arguments as this parameter

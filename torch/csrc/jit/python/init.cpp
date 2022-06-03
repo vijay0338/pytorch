@@ -127,7 +127,7 @@ using caffe2::serialize::PyTorchStreamReader;
 using caffe2::serialize::PyTorchStreamWriter;
 
   static std::shared_ptr<c10::SymbolicIntNode> toSymIntNode(std::shared_ptr<c10::SymbolicIntNode> a, py::object b) {
-      return torch::is_symint_node(b) ? 
+      return torch::is_symint_node(b) ?
         b.cast<std::shared_ptr<c10::SymbolicIntNode>>() :
         a->wrap(b.cast<int64_t>());
   }
