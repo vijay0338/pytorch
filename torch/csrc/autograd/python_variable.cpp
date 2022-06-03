@@ -621,7 +621,7 @@ static PyObject* THPVariable_make_wrapper_subclass(PyObject*, PyObject* args, Py
 
     const auto sizes_strides_policy = r.stringViewOptional(10);
     if (sizes_strides_policy.has_value()) {
-      data.unsafeGetTensorImpl()->set_sizes_strides_policy(
+      tensor.unsafeGetTensorImpl()->set_sizes_strides_policy(
           parseSizesStridesPolicyArgument(*sizes_strides_policy));
     }
   } else {
