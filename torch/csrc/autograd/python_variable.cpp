@@ -568,8 +568,14 @@ static PyObject* THPVariable_make_wrapper_subclass(PyObject*, PyObject* args, Py
   // NB: pin_memory doesn't actually do anything
   // TODO: strides variant?
   static PythonArgParser parser({
-    "_make_wrapper_subclass(PyObject* cls, IntArrayRef size, *, IntArrayRef? strides=None, int64_t? storage_offset=None, MemoryFormat? memory_format=None, ScalarType dtype=None, Layout layout=torch.strided, Device device=None, bool pin_memory=False, bool requires_grad=False, bool dispatch_strides=False, bool dispatch_device=False)",
-    "_make_wrapper_subclass(PyObject* cls, SymIntArrayRef size, SymIntArrayRef strides, int64_t? storage_offset=None, *, MemoryFormat? memory_format=None, ScalarType dtype=None, Layout layout=torch.strided, Device device=None, bool pin_memory=False, bool requires_grad=False, bool dispatch_strides=False, bool dispatch_device=False)"
+      "_make_wrapper_subclass(PyObject* cls, IntArrayRef size, *, IntArrayRef? strides=None, "
+      "int64_t? storage_offset=None, MemoryFormat? memory_format=None, ScalarType dtype=None, "
+      "Layout layout=torch.strided, Device device=None, bool pin_memory=False, bool requires_grad=False, "
+      "c10::string_view? dispatch_sizes_strides_policy=None, bool dispatch_device=False)",
+      "_make_wrapper_subclass(PyObject* cls, SymIntArrayRef size, SymIntArrayRef strides, "
+      "int64_t? storage_offset=None, MemoryFormat? memory_format=None, ScalarType dtype=None, "
+      "Layout layout=torch.strided, Device device=None, bool pin_memory=False, bool requires_grad=False, "
+      "c10::string_view? dispatch_sizes_strides_policy=None, bool dispatch_device=False)",
   });
   ParsedArgs<12> parsed_args{};
   auto r = parser.parse(args, kwargs, parsed_args);
@@ -613,8 +619,10 @@ static PyObject* THPVariable_make_wrapper_subclass(PyObject*, PyObject* args, Py
           .options(options)
           .make_tensor();
 
-    if (r.toBool(10)) {
-      tensor.unsafeGetTensorImpl()->set_sizes_strides_policy(c10::TensorImpl::SizesStridesPolicy::CustomStrides);
+    const auto sizes_strides_policy = r.stringViewOptional(10);
+    if (sizes_strides_policy.has_value()) {
+      data.unsafeGetTensorImpl()->set_sizes_strides_policy(
+          parseSizesStridesPolicyArgument(*sizes_strides_policy));
     }
   } else {
       AutoDispatchBelowADInplaceOrView guard{}; // TODO: Remove.
