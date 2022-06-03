@@ -387,7 +387,7 @@ def get_executable_command(options, allow_pytest, disable_coverage=False):
         executable = [sys.executable]
     if allow_pytest:
         subprocess.run([sys.executable, "-m", "pip", "install", "pytest", "pytest-xdist"])
-        executable = ["pytest"]
+        executable = ["pytest", "-n", "2"]
     else:
         print_to_stderr(
             "Pytest cannot be used for this test. Falling back to unittest."
