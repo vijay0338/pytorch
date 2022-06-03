@@ -1,5 +1,7 @@
+# -*- coding: utf-8 -*-
+# Owner(s): ["oncall: jit"]
+
 from torch._C import _disabled_torch_function_impl
-from torch.testing._internal.jit_utils import JitTestCase
 from torch.testing._internal.common_utils import run_tests, TestCase
 import unittest
 import torch
