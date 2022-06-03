@@ -1,5 +1,5 @@
 import contextlib
-from typing import Iterator
+from typing import Iterator, Set
 import functools
 
 from torch.utils._mode_utils import _enable_mode, _push_mode, _ModeInfo, _wrap_init
@@ -143,20 +143,29 @@ class TorchDispatchMode(metaclass=TorchDispatchModeMeta):
     """
     # Force metaclass to generate constructor at the base of the hierarchy
     def __init__(self):
-        pass
+        self.ancestors: Set[TorchDispatchMode]
 
     def __torch_dispatch__(self, func, types, args=(), kwargs=None):
         raise NotImplementedError()
 
     def __enter__(self):
-        if hasattr(self, "inner"):
-            raise RuntimeError(f"{self} has already been used as a mode, please create and use a fresh version")
         old = _get_torch_dispatch_mode()
-        self.inner = old
+        if hasattr(self, "inner"):
+            assert hasattr(self, "ancestors")
+            if old is not None and old not in self.ancestors:
+                raise RuntimeError(f"{self} has already been used as a mode and is not valid in the current state, " +
+                                   "because the current mode is not its ancestor. Please use a fresh version")
+        else:
+            self.inner = old
+            if not hasattr(self, "ancestors"):
+                self.ancestors = {}
+            else:
+                self.ancestors = self.inner.ancestors.union({self.inner})
+        self.prev = old
         _set_torch_dispatch_mode(self)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        _set_torch_dispatch_mode(self.inner)
+        _set_torch_dispatch_mode(self.prev)
 
     @classmethod
     def push(cls, *args, **kwargs):
