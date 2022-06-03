@@ -611,7 +611,7 @@ static PyObject* THPVariable_make_wrapper_subclass(PyObject*, PyObject* args, Py
 
   Tensor tensor;
   if (r.idx == 0) {
-    auto tensor = at::for_blob(nullptr, r.intlist(1))
+    tensor = at::for_blob(nullptr, r.intlist(1))
           .strides(r.intlistOptional(2))
           .storage_offset(r.toInt64Optional(3))
           .context(nullptr, [](void *ctx) {})
@@ -625,31 +625,31 @@ static PyObject* THPVariable_make_wrapper_subclass(PyObject*, PyObject* args, Py
           parseSizesStridesPolicyArgument(*sizes_strides_policy));
     }
   } else {
-      AutoDispatchBelowADInplaceOrView guard{}; // TODO: Remove.
-      tracer::impl::NoTracerDispatchMode tracer_guard{};
+    AutoDispatchBelowADInplaceOrView guard{}; // TODO: Remove.
+    tracer::impl::NoTracerDispatchMode tracer_guard{};
 
-      // We shouldn't need storage
-      Storage storage{Storage::use_byte_size_t{}, 0, at::DataPtr{}};
+    // We shouldn't need storage
+    Storage storage{Storage::use_byte_size_t{}, 0, at::DataPtr{}};
 
-      tensor = at::detail::make_tensor<TensorImpl>(
-          std::move(storage), options.computeDispatchKey(), options.dtype());
+    tensor = at::detail::make_tensor<TensorImpl>(
+        std::move(storage), options.computeDispatchKey(), options.dtype());
 
-        auto sym_sizes = r.symintlist(1);
-        auto sym_strides = r.symintlist(2);
+    auto sym_sizes = r.symintlist(1);
+    auto sym_strides = r.symintlist(2);
 
-        TensorImpl* tensor_impl = tensor.unsafeGetTensorImpl();
+    TensorImpl* tensor_impl = tensor.unsafeGetTensorImpl();
 
-        // TODO: this should probably be sym_sizes, sym_strides AND offset
-        tensor_impl->set_sym_sizes_and_strides(sym_sizes, sym_strides);
+    // TODO: this should probably be sym_sizes, sym_strides AND offset
+    tensor_impl->set_sym_sizes_and_strides(sym_sizes, sym_strides);
 
-        // TODO: this may need to be symbolic as well
-        auto storage_offset = r.toInt64Optional(3);
-        if (storage_offset) {
-          tensor_impl->set_storage_offset(*storage_offset);
-        }
+    // TODO: this may need to be symbolic as well
+    auto storage_offset = r.toInt64Optional(3);
+    if (storage_offset) {
+      tensor_impl->set_storage_offset(*storage_offset);
+    }
 
-        // TODO: r.toBool(10)/dispatch_strides is ignored since setting sym_sizes/sym_strides
-        // will set a different custom policy
+    // TODO: r.toBool(10)/dispatch_strides is ignored since setting sym_sizes/sym_strides
+    // will set a different custom policy
   }
 
   tensor.set_requires_grad(r.toBool(9));
